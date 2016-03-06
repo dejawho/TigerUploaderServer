@@ -11,6 +11,18 @@ function folderSize ($dir)
     return $size;
 }
 
-echo folderSize('uploadedimages');
-
+$sizeCacheFile = "sizeCache";
+$imagesSize = 0;
+if (file_exists($sizeCacheFile)){
+	$fileStream = fopen($sizeCacheFile, 'r');
+	$imagesSize = fread($fileStream,filesize($sizeCacheFile));
+	fclose($myfile);
+} else {
+	$imagesSize = folderSize('uploadedimages');
+	$fileStream = fopen($sizeCacheFile, 'w');
+	fwrite($fileStream, $imagesSize);
+	fclose($fileStream);
+}
+echo $imagesSize;
+			
 ?>
