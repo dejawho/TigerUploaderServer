@@ -48,7 +48,7 @@
 		} else {
 			$uploadOk = 0;
 			$responseCode = 1;
-			$responseMessage = 'http://imageupload-tigeruploader.rhcloud.com/uploadedimages/'.basename( $_FILES["fileToUpload"]["name"]);
+			$responseMessage = 'http://pusselleide.ovh/uploadedimages/'.basename( $_FILES["fileToUpload"]["name"]);
 		}
 	}
 	// Check if $uploadOk is set to 0 by an error
@@ -59,14 +59,18 @@
 				unlink ($sizeCacheFile);
 			}
 			$responseCode = 0;
-			$responseMessage = 'http://imageupload-tigeruploader.rhcloud.com/uploadedimages/'.basename( $_FILES["fileToUpload"]["name"]);
+			$responseMessage = 'http://pusselleide.ovh/uploadedimages/'.basename( $_FILES["fileToUpload"]["name"]);
 		} else {
 			$responseCode = 40;
 			$responseMessage = "Sorry, there was an error uploading your file.";
 		}
 	} 
 	
-	$response = array('ResponseCode' => $responseCode, 'ResponseMessage' => $responseMessage);
+	if($responseCode == 0 or $responseCode == 1) {
+		$response = array('ResponseCode' => $responseCode, 'ResponseMessage' => $responseMessage, 'success' => true);
+	} else {
+		$response = array('ResponseCode' => $responseCode, 'error' => $responseMessage, 'success' => false);
+	}
 	echo json_encode($response);
 ?>
 

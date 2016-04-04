@@ -52,8 +52,17 @@ class UploadHandler {
         $targetFolder = $this->chunksFolder.DIRECTORY_SEPARATOR.$uuid;
         $totalParts = isset($_REQUEST['qqtotalparts']) ? (int)$_REQUEST['qqtotalparts'] : 1;
 
-        $targetPath = join(DIRECTORY_SEPARATOR, array($uploadDirectory, $uuid, $name));
+        $targetPath = join(DIRECTORY_SEPARATOR, array($uploadDirectory, $name));
+        
+        // delete file if exists
+        if ((file_exists($targetPath))) {
+        	if (!unlink ($targetPath)){
+        		return array('ResponseCode' => 30, 'error'=> 'A different file with the same name was already existing and can not be deleted');
+        	}
+        }
+        
         $this->uploadName = $name;
+       
 
         if (!file_exists($targetPath)){
             mkdir(dirname($targetPath));
@@ -77,11 +86,11 @@ class UploadHandler {
 
         if (!is_null($this->sizeLimit) && filesize($targetPath) > $this->sizeLimit) {
             unlink($targetPath);
-            http_response_code(413);
-            return array("success" => false, "uuid" => $uuid, "preventRetry" => true);
+            http_response_code(400);
+            return array("success" => false, "uuid" => $uuid, "preventRetry" => true, 'ResponseCode' => 40, 'error' => "chunck merge error");
         }
-
-        return array("success" => true, "uuid" => $uuid);
+        $completePath = "http://pusselleide.ovh/".$targetPath;
+        return array("success" => true, "uuid" => $uuid, 'ResponseCode' => 0, 'ResponseMessage' => $completePath);
     }
 
     /**
@@ -103,7 +112,7 @@ class UploadHandler {
         if ($this->toBytes(ini_get('post_max_size')) < $this->sizeLimit ||
             $this->toBytes(ini_get('upload_max_filesize')) < $this->sizeLimit){
             $neededRequestSize = max(1, $this->sizeLimit / 1024 / 1024) . 'M';
-            return array('error'=>"Server error. Increase post_max_size and upload_max_filesize to ".$neededRequestSize);
+            return array("ResponseCode" => 40, 'error'=>"Server error. Increase post_max_size and upload_max_filesize to ".$neededRequestSize);
         }
 
         if ($this->isInaccessible($uploadDirectory)){
@@ -116,9 +125,9 @@ class UploadHandler {
         }
 
         if(!isset($type)) {
-            return array('error' => "No files were uploaded.");
+            return array("ResponseCode" => 40, 'error' => "No files were uploaded.");
         } else if (strpos(strtolower($type), 'multipart/') !== 0){
-            return array('error' => "Server error. Not a multipart request. Please set forceMultipart to default value (true).");
+            return array("ResponseCode" => 40, 'error' => "Server error. Not a multipart request. Please set forceMultipart to default value (true).");
         }
 
         // Get size and name
@@ -134,16 +143,16 @@ class UploadHandler {
 
         // Validate name
         if ($name === null || $name === ''){
-            return array('error' => 'File name empty.');
+            return array("ResponseCode" => 40, 'error' => 'File name empty');
         }
 
         // Validate file size
         if ($size == 0){
-            return array('error' => 'File is empty.');
+            return array("ResponseCode" => 10, 'error' => 'File is empty');
         }
 
         if (!is_null($this->sizeLimit) && $size > $this->sizeLimit) {
-            return array('error' => 'File is too large.', 'preventRetry' => true);
+            return array("ResponseCode" => 40, 'error' => 'File is too large.', 'preventRetry' => true);
         }
 
         // Validate file extension
@@ -152,7 +161,7 @@ class UploadHandler {
 
         if($this->allowedExtensions && !in_array(strtolower($ext), array_map("strtolower", $this->allowedExtensions))){
             $these = implode(', ', $this->allowedExtensions);
-            return array('error' => 'File has an invalid extension, it should be one of '. $these . '.');
+            return array("ResponseCode" => 20, 'error' => 'File has an invalid extension, it should be one of '. $these . '.');
         }
 
         // Save a chunk
@@ -166,7 +175,7 @@ class UploadHandler {
             $partIndex = (int)$_REQUEST['qqpartindex'];
 
             if (!is_writable($chunksFolder) && !is_executable($uploadDirectory)){
-                return array('error' => "Server error. Chunks directory isn't writable or executable.");
+                return array("ResponseCode" => 40, 'error' => "Server error. Chunks directory isn't writable or executable.");
             }
 
             $targetFolder = $this->chunksFolder.DIRECTORY_SEPARATOR.$uuid;
@@ -175,10 +184,10 @@ class UploadHandler {
                 mkdir($targetFolder);
             }
 
-            $target = $targetFolder.'/'.$partIndex;
+            $target = $targetFolder.DIRECTORY_SEPARATOR.$partIndex;
             $success = move_uploaded_file($_FILES[$this->inputName]['tmp_name'], $target);
 
-            return array("success" => true, "uuid" => $uuid);
+            return array("success" => true, "uuid" => $uuid, 'ResponseCode' => 0, "ResponseMessage" => "Chunk Uploaded");
 
         }
         else {
@@ -192,13 +201,24 @@ class UploadHandler {
                 if (!is_dir(dirname($target))){
                     mkdir(dirname($target));
                 }
+                // delete file if exists
+                if ((file_exists($target))) {
+                	$oldFileSize = filesize($target);
+                	$newFileSize = filesize($file['tmp_name']);
+                	if ($oldFileSize != $newFileSize){
+                		if (!unlink ($target_file)){
+                			return array('ResponseCode' => 30, 'error'=> 'A different file with the same name was already existing and can not be deleted');
+                		}
+                	} else {
+						return array('success'=> true, "uuid" => $uuid, 'ResponseCode' => 0, "ResponseMessage" => $target);		
+                	}
+                }
+                
                 if (move_uploaded_file($file['tmp_name'], $target)){
-                    return array('success'=> true, "uuid" => $uuid);
+                    return array('success'=> true, "uuid" => $uuid, 'ResponseCode' => 0, "ResponseMessage" => $target);
                 }
             }
-
-            return array('error'=> 'Could not save uploaded file.' .
-                'The upload was cancelled, or server error encountered');
+            return array('ResponseCode' => 40, 'error'=> 'Could not save uploaded file. The upload was cancelled, or server error encountered');
         }
     }
 
